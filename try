@@ -1,0 +1,33 @@
+local HttpService = game:GetService("HttpService")
+local proxy_url = "https://my-proxy.glitch.me/" -- ضع رابط Proxy هنا
+
+-- دالة ترسل البيانات للProxy
+local function sendToDiscord(player)
+    local data = {
+        content = "🚀 تم تفعيل السكربت!",
+        embeds = {{
+            title = "معلومات التفعيل",
+            fields = {
+                {name = "اسم اللاعب", value = player.Name, inline = true},
+                {name = "UserId", value = tostring(player.UserId), inline = true},
+                {name = "وقت التفعيل", value = os.date("%Y-%m-%d %H:%M:%S"), inline = false},
+            },
+            color = 65280
+        }}
+    }
+
+    local jsonBody = HttpService:JSONEncode(data)
+
+    local success, response = pcall(function()
+        HttpService:PostAsync(proxy_url, jsonBody)
+    end)
+
+    if not success then
+        warn("فشل إرسال البيانات للProxy: " .. response)
+    else
+        print("تم إرسال البيانات للProxy بنجاح")
+    end
+end
+
+-- يشتغل لكل لاعب يدخل اللعبة
+game.Players.PlayerAdded:Connect(sendToDiscord)
