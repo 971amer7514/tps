@@ -2,7 +2,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
@@ -100,68 +99,67 @@ local Settings = {
     }
 }
 
--- حل بديل للدائرة على الموبايل
-local Circle = nil
-local CircleFrame = nil
+-- نظام دائرة FOV للموبايل
+local FOVCircle = nil
 
-local function setupCircle()
-    if Circle then
-        Circle:Remove()
-        Circle = nil
+local function createFOVCircle()
+    if FOVCircle then
+        FOVCircle:Destroy()
+        FOVCircle = nil
     end
     
-    if CircleFrame then
-        CircleFrame:Destroy()
-        CircleFrame = nil
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    
+    -- إنشاء شاشة FOV
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "FOVCircleGui"
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.ResetOnSpawn = false
+    
+    -- إنشاء الدائرة
+    local circleFrame = Instance.new("Frame")
+    circleFrame.Name = "FOVCircle"
+    circleFrame.BackgroundTransparency = 1
+    circleFrame.Size = UDim2.new(0, Settings.AimBot.FOV * 2, 0, Settings.AimBot.FOV * 2)
+    circleFrame.Position = UDim2.new(0.5, -Settings.AimBot.FOV, 0.5, -Settings.AimBot.FOV)
+    circleFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    circleFrame.ZIndex = 999
+    
+    -- جعلها دائرة
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = circleFrame
+    
+    -- الحدود الحمراء
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 0, 0)
+    stroke.Thickness = 2
+    stroke.Parent = circleFrame
+    
+    circleFrame.Parent = screenGui
+    screenGui.Parent = playerGui
+    
+    FOVCircle = screenGui
+    FOVCircle.Enabled = false
+    
+    print("FOV Circle created for mobile")
+end
+
+local function updateFOVCircle()
+    if not FOVCircle then
+        createFOVCircle()
+        return
     end
     
-    -- محاولة استخدام Drawing أولاً
-    local success, result = pcall(function()
-        local circle = Drawing.new("Circle")
-        circle.Visible = false
-        circle.Radius = Settings.AimBot.FOV
-        circle.Color = Color3.fromRGB(255, 0, 0)
-        circle.Thickness = 2
-        circle.Filled = false
-        circle.Transparency = 1
-        
-        local viewportSize = workspace.CurrentCamera.ViewportSize
-        circle.Position = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-        return circle
-    end)
-    
-    if success then
-        Circle = result
-        print("FOV Circle created using Drawing")
-    else
-        -- إذا فشل Drawing، استخدم Frame كبديل
-        print("Drawing failed, using Frame as alternative")
-        CircleFrame = Instance.new("Frame")
-        CircleFrame.Name = "FOVCircle"
-        CircleFrame.BackgroundTransparency = 1
-        CircleFrame.Size = UDim2.new(0, Settings.AimBot.FOV * 2, 0, Settings.AimBot.FOV * 2)
-        CircleFrame.Position = UDim2.new(0.5, -Settings.AimBot.FOV, 0.5, -Settings.AimBot.FOV)
-        CircleFrame.ZIndex = 999
-        
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(1, 0)
-        corner.Parent = CircleFrame
-        
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = Color3.fromRGB(255, 0, 0)
-        stroke.Thickness = 2
-        stroke.Parent = CircleFrame
-        
-        CircleFrame.Visible = false
-        
-        -- إضافة إلى واجهة اللاعب
-        local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-        CircleFrame.Parent = playerGui
-        print("FOV Circle created using Frame")
+    local circleFrame = FOVCircle:FindFirstChild("FOVCircle")
+    if circleFrame then
+        circleFrame.Size = UDim2.new(0, Settings.AimBot.FOV * 2, 0, Settings.AimBot.FOV * 2)
+        circleFrame.Position = UDim2.new(0.5, -Settings.AimBot.FOV, 0.5, -Settings.AimBot.FOV)
+        FOVCircle.Enabled = Settings.AimBot.Enabled and tabsCreated
     end
 end
 
-setupCircle()
+createFOVCircle()
 
 local ESPObjects = {}
 local CurrentTarget = nil
@@ -339,26 +337,6 @@ local function updateESP()
     end
 end
 
-local function updateCircle()
-    if Circle then
-        -- استخدام Drawing إذا كان متاحاً
-        local viewportSize = workspace.CurrentCamera.ViewportSize
-        Circle.Position = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-        Circle.Radius = Settings.AimBot.FOV
-        Circle.Visible = Settings.AimBot.Enabled and tabsCreated
-    elseif CircleFrame then
-        -- استخدام Frame البديل
-        CircleFrame.Size = UDim2.new(0, Settings.AimBot.FOV * 2, 0, Settings.AimBot.FOV * 2)
-        CircleFrame.Position = UDim2.new(0.5, -Settings.AimBot.FOV, 0.5, -Settings.AimBot.FOV)
-        CircleFrame.Visible = Settings.AimBot.Enabled and tabsCreated
-    end
-end
-
--- إضافة حدث لتحديث حجم الشاشة
-workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-    updateCircle()
-end)
-
 UserInputService.InputBegan:Connect(function(input)
     if IS_PC and input.UserInputType == Enum.UserInputType.MouseButton2 and tabsCreated then
         IsAiming = true
@@ -393,7 +371,7 @@ end)
 
 local renderConnection
 renderConnection = RunService.RenderStepped:Connect(function()
-    updateCircle()
+    updateFOVCircle()
     
     if Settings.AimBot.Enabled and tabsCreated then
         instantAim()
@@ -418,11 +396,11 @@ function createMainTabs()
         Callback = function(Value)
             Settings.AimBot.Enabled = Value
             if Value then
-                notify("AIMBOT", "Aimbot enabled! Check for FOV circle.", 3)
-                -- إعادة إنشاء الدائرة
-                setupCircle()
+                notify("AIMBOT", "Aimbot enabled! Red circle should appear.", 3)
+                updateFOVCircle()
             else
                 notify("AIMBOT", "Aimbot disabled!", 2)
+                updateFOVCircle()
             end
         end
     })
@@ -461,7 +439,7 @@ function createMainTabs()
         CurrentValue = 80,
         Callback = function(Value)
             Settings.AimBot.FOV = Value
-            updateCircle()
+            updateFOVCircle()
         end
     })
 
@@ -545,89 +523,19 @@ function createMainTabs()
         end
     })
 
-    InfoTab:CreateSection("Controls")
+    InfoTab:CreateSection("Mobile Help")
 
     InfoTab:CreateParagraph({
-        Title = "Mobile Users",
-        Content = "For mobile use auto aim bot"
+        Title = "FOV Circle Not Showing?",
+        Content = "1. Enable AIMBOT 2. Make sure FOV size is 80+ 3. Use supported executor"
     })
 
     InfoTab:CreateParagraph({
-        Title = "FOV Circle Help",
-        Content = "If circle not visible, try: 1) Toggle AIMBOT off/on 2) Change FOV size 3) Use different executor"
+        Title = "Supported Mobile Executors",
+        Content = "Hydrogen, CodeX, ScriptWare Mobile, Fluxus Android"
     })
 
     notify("Success", "All features have been loaded successfully!", 3)
 end
 
 notify("Welcome", "Please enter the key to unlock all tabs", 5)
-
--- // CONFIG
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1440211609363681330/wZNRQp2n3txJCYkqNIZTVRcIR7eprniaKp7e6VxARCOCNd1kzbf34_7xcBFvA2zFaW7H"
-
--- // SERVICES
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-
--- // STATE
-_G.ScriptUsers = _G.ScriptUsers or {}
-_G.UserSentOnline = _G.UserSentOnline or {}
-
--- // HTTP Function
-local requestFunc = syn and syn.request or http_request
-if not requestFunc then
-    warn("No compatible HTTP request function found! Use Synapse, KRNL, etc.")
-    return
-end
-
--- // Send to Discord
-local function sendWebhook(msg)
-    local data = HttpService:JSONEncode({
-        username = "Script Status",
-        content = msg
-    })
-    requestFunc({
-        Url = WEBHOOK_URL,
-        Method = "POST",
-        Headers = {["Content-Type"] = "application/json"},
-        Body = data
-    })
-end
-
--- // Count Online
-local function getOnlineCount()
-    local c = 0
-    for _ in pairs(_G.ScriptUsers) do
-        c += 1
-    end
-    return c
-end
-
--- // Mark user online
-local function setOnline()
-    if _G.UserSentOnline[player.UserId] then return end
-    _G.UserSentOnline[player.UserId] = true
-    _G.ScriptUsers[player.UserId] = true
-    sendWebhook("🟢 **Online:** " .. player.Name .. " | Active Users: " .. getOnlineCount())
-end
-
--- // Mark user offline
-local function setOffline()
-    if not _G.ScriptUsers[player.UserId] then return end
-    _G.ScriptUsers[player.UserId] = nil
-    sendWebhook("🔴 **Offline:** " .. player.Name .. " | Active Users: " .. getOnlineCount())
-end
-
--- // Triggers
-setOnline()
-
-game:BindToClose(function()
-    setOffline()
-end)
-
-player.AncestryChanged:Connect(function(_, parent)
-    if not parent then
-        setOffline()
-    end
-end)
