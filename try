@@ -100,23 +100,65 @@ local Settings = {
     }
 }
 
+-- حل بديل للدائرة على الموبايل
 local Circle = nil
+local CircleFrame = nil
+
 local function setupCircle()
     if Circle then
         Circle:Remove()
+        Circle = nil
     end
     
-    Circle = Drawing.new("Circle")
-    Circle.Visible = false
-    Circle.Radius = Settings.AimBot.FOV
-    Circle.Color = Color3.fromRGB(255, 0, 0)
-    Circle.Thickness = 2
-    Circle.Filled = false
-    Circle.Transparency = 1
+    if CircleFrame then
+        CircleFrame:Destroy()
+        CircleFrame = nil
+    end
     
-    -- إصلاح للموبايل: تحديث الموضع مباشرة بعد الإنشاء
-    local viewportSize = workspace.CurrentCamera.ViewportSize
-    Circle.Position = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+    -- محاولة استخدام Drawing أولاً
+    local success, result = pcall(function()
+        local circle = Drawing.new("Circle")
+        circle.Visible = false
+        circle.Radius = Settings.AimBot.FOV
+        circle.Color = Color3.fromRGB(255, 0, 0)
+        circle.Thickness = 2
+        circle.Filled = false
+        circle.Transparency = 1
+        
+        local viewportSize = workspace.CurrentCamera.ViewportSize
+        circle.Position = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+        return circle
+    end)
+    
+    if success then
+        Circle = result
+        print("FOV Circle created using Drawing")
+    else
+        -- إذا فشل Drawing، استخدم Frame كبديل
+        print("Drawing failed, using Frame as alternative")
+        CircleFrame = Instance.new("Frame")
+        CircleFrame.Name = "FOVCircle"
+        CircleFrame.BackgroundTransparency = 1
+        CircleFrame.Size = UDim2.new(0, Settings.AimBot.FOV * 2, 0, Settings.AimBot.FOV * 2)
+        CircleFrame.Position = UDim2.new(0.5, -Settings.AimBot.FOV, 0.5, -Settings.AimBot.FOV)
+        CircleFrame.ZIndex = 999
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(1, 0)
+        corner.Parent = CircleFrame
+        
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(255, 0, 0)
+        stroke.Thickness = 2
+        stroke.Parent = CircleFrame
+        
+        CircleFrame.Visible = false
+        
+        -- إضافة إلى واجهة اللاعب
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+        CircleFrame.Parent = playerGui
+        print("FOV Circle created using Frame")
+    end
 end
 
 setupCircle()
@@ -298,31 +340,23 @@ local function updateESP()
 end
 
 local function updateCircle()
-    if not Circle then
-        setupCircle()
-        return
-    end
-    
-    local viewportSize = workspace.CurrentCamera.ViewportSize
-    local screenCenter = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-    
-    -- إصلاح مهم للموبايل: التأكد من أن الدائرة في المنتصف
-    Circle.Position = screenCenter
-    Circle.Radius = Settings.AimBot.FOV
-    Circle.Visible = Settings.AimBot.Enabled and tabsCreated
-    
-    -- طباعة معلومات التصحيح للموبايل
-    if IS_MOBILE and Settings.AimBot.Enabled and tabsCreated then
-        print(string.format("FOV Circle - Position: (%.1f, %.1f), Radius: %.1f, Visible: %s", 
-              screenCenter.X, screenCenter.Y, Circle.Radius, tostring(Circle.Visible)))
+    if Circle then
+        -- استخدام Drawing إذا كان متاحاً
+        local viewportSize = workspace.CurrentCamera.ViewportSize
+        Circle.Position = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+        Circle.Radius = Settings.AimBot.FOV
+        Circle.Visible = Settings.AimBot.Enabled and tabsCreated
+    elseif CircleFrame then
+        -- استخدام Frame البديل
+        CircleFrame.Size = UDim2.new(0, Settings.AimBot.FOV * 2, 0, Settings.AimBot.FOV * 2)
+        CircleFrame.Position = UDim2.new(0.5, -Settings.AimBot.FOV, 0.5, -Settings.AimBot.FOV)
+        CircleFrame.Visible = Settings.AimBot.Enabled and tabsCreated
     end
 end
 
--- إضافة حدث لتحديث حجم الشاشة عند التغيير (مهم للموبايل)
+-- إضافة حدث لتحديث حجم الشاشة
 workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-    if Circle then
-        updateCircle()
-    end
+    updateCircle()
 end)
 
 UserInputService.InputBegan:Connect(function(input)
@@ -385,7 +419,7 @@ function createMainTabs()
             Settings.AimBot.Enabled = Value
             if Value then
                 notify("AIMBOT", "Aimbot enabled! Check for FOV circle.", 3)
-                -- إعادة إنشاء الدائرة عند التفعيل
+                -- إعادة إنشاء الدائرة
                 setupCircle()
             else
                 notify("AIMBOT", "Aimbot disabled!", 2)
@@ -427,9 +461,7 @@ function createMainTabs()
         CurrentValue = 80,
         Callback = function(Value)
             Settings.AimBot.FOV = Value
-            if Circle then
-                Circle.Radius = Value
-            end
+            updateCircle()
         end
     })
 
@@ -521,8 +553,8 @@ function createMainTabs()
     })
 
     InfoTab:CreateParagraph({
-        Title = "FOV Circle Fix",
-        Content = "If circle not visible on mobile, toggle AIMBOT off/on"
+        Title = "FOV Circle Help",
+        Content = "If circle not visible, try: 1) Toggle AIMBOT off/on 2) Change FOV size 3) Use different executor"
     })
 
     notify("Success", "All features have been loaded successfully!", 3)
